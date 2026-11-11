@@ -1,2 +1,4 @@
 -r requirements.txt
 mcp>=1.12,<2
+
+jsonschema>=4,<5
