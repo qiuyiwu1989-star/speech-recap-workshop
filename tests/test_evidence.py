@@ -21,3 +21,11 @@ class EvidenceTest(unittest.TestCase):
         r=self.client.get('/api/drafts/'+id+'/versions/'+str(version))
         self.assertEqual(r.json['body'],'保留原句')
         self.assertIn('修改后正文',r.json['diff'])
+
+    def test_pending_units_block_approval(self):
+        id=self.post('',{'title':'复核','transcript':'原文'}).json['id']
+        self.post('/'+id+'/save',{'body':'正文','reviewed':False})
+        self.post('/'+id+'/review',{'units':[{'claim':'观点','source':'L1','target':'','status':'待核'}]})
+        r=self.post('/'+id+'/save',{'body':'正文','reviewed':True})
+        self.assertFalse(r.json['reviewed'])
+        self.assertEqual(self.client.get('/api/drafts/'+id+'/export/md').status_code,409)

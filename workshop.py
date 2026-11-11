@@ -136,7 +136,10 @@ def create_app(data_dir=None):
                         for unit in units:
                             unit['status'] = '待核'
                         conn.execute('UPDATE reviews SET units=? WHERE draft_id=?', (json.dumps(units,ensure_ascii=False),id))
-                conn.execute('UPDATE drafts SET body=?,reviewed=? WHERE id=?', (b['body'], int(b.get('reviewed') is True),id))
+                review_row = conn.execute('SELECT units FROM reviews WHERE draft_id=?', (id,)).fetchone()
+                saved_units = json.loads(review_row['units']) if review_row else []
+                approved = b.get('reviewed') is True and not any(u['status'] == '待核' for u in saved_units)
+                conn.execute('UPDATE drafts SET body=?,reviewed=? WHERE id=?', (b['body'], int(approved),id))
         elif action == 'review':
             units = b.get('units')
             sources = {f'L{i}' for i,line in enumerate(d['transcript'].splitlines(),1) if line.strip()}
