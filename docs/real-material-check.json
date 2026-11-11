@@ -1,0 +1,23 @@
+{
+  "scope": "Local workflow checks only; no model call or semantic fidelity claim; no transcript content retained",
+  "samples": [
+    {
+      "sample": 1,
+      "characters": 29066,
+      "nonempty_lines": 238,
+      "checks": "import/source mapping/review/export isolation/invalidation passed"
+    },
+    {
+      "sample": 2,
+      "characters": 70974,
+      "nonempty_lines": 670,
+      "checks": "import/source mapping/review/export isolation/invalidation passed"
+    },
+    {
+      "sample": 3,
+      "characters": 21038,
+      "nonempty_lines": 182,
+      "checks": "import/source mapping/review/export isolation/invalidation passed"
+    }
+  ]
+}
