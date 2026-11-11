@@ -5,6 +5,7 @@ import os
 import re
 import sqlite3
 import uuid
+import difflib
 from pathlib import Path
 from urllib.request import Request, urlopen
 from flask import Flask, request, jsonify, Response
@@ -61,6 +62,8 @@ def create_app(data_dir=None):
         return conn
     with db() as conn:
         conn.execute('CREATE TABLE IF NOT EXISTS drafts (id TEXT PRIMARY KEY,title TEXT,transcript TEXT,engine TEXT DEFAULT \'\',body TEXT DEFAULT \'\',reviewed INTEGER DEFAULT 0)')
+        conn.execute("CREATE TABLE IF NOT EXISTS reviews (draft_id TEXT PRIMARY KEY, units TEXT NOT NULL)")
+        conn.execute("CREATE TABLE IF NOT EXISTS versions (version INTEGER PRIMARY KEY AUTOINCREMENT, draft_id TEXT, body TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)")
     def get(id):
         with db() as conn:
             row = conn.execute('SELECT * FROM drafts WHERE id=?', (id,)).fetchone()
@@ -101,6 +104,13 @@ def create_app(data_dir=None):
     def detail(id):
         d = get(id)
         d['flags'] = flags(d['body'] or d['engine'])
+        d['sources'] = [{'id': f'L{i}', 'text': line} for i, line in enumerate(d['transcript'].splitlines(), 1) if line.strip()]
+        with db() as conn:
+            row = conn.execute('SELECT units FROM reviews WHERE draft_id=?', (id,)).fetchone()
+            d['units'] = json.loads(row['units']) if row else []
+            d['versions'] = [dict(r) for r in conn.execute('SELECT version,created_at FROM versions WHERE draft_id=? ORDER BY version DESC', (id,))]
+        d['coverage'] = {status: sum(u['status'] == status for u in d['units']) for status in ('待核','完整保留','部分保留','遗漏')}
+
         return jsonify(d)
     @app.post('/api/drafts/<id>/<action>')
     def update(id, action):
@@ -117,10 +127,47 @@ def create_app(data_dir=None):
             if not isinstance(b.get('body'), str):
                 return jsonify(error='正文必须是文本'), 400
             with db() as conn:
+                changed = b['body'] != d['body']
+                if changed:
+                    conn.execute('INSERT INTO versions(draft_id,body) VALUES(?,?)', (id,d['body']))
+                    row = conn.execute('SELECT units FROM reviews WHERE draft_id=?', (id,)).fetchone()
+                    if row:
+                        units = json.loads(row['units'])
+                        for unit in units:
+                            unit['status'] = '待核'
+                        conn.execute('UPDATE reviews SET units=? WHERE draft_id=?', (json.dumps(units,ensure_ascii=False),id))
                 conn.execute('UPDATE drafts SET body=?,reviewed=? WHERE id=?', (b['body'], int(b.get('reviewed') is True),id))
+        elif action == 'review':
+            units = b.get('units')
+            sources = {f'L{i}' for i,line in enumerate(d['transcript'].splitlines(),1) if line.strip()}
+            valid = isinstance(units,list) and len(units) <= 2000
+            if valid:
+                for u in units:
+                    if not isinstance(u,dict) or not all(isinstance(u.get(k),str) for k in ('claim','source','target','status')):
+                        valid = False
+                        break
+                    if not u['claim'].strip() or u['source'] not in sources or u['status'] not in ('待核','完整保留','部分保留','遗漏'):
+                        valid = False
+                        break
+                    if u['status'] in ('完整保留','部分保留') and (not u['target'].strip() or u['target'] not in d['body']):
+                        valid = False
+                        break
+            if not valid:
+                return jsonify(error='请填写信息点、有效来源行；保留项需引用已保存正文中的原句'), 400
+            with db() as conn:
+                conn.execute('INSERT OR REPLACE INTO reviews(draft_id,units) VALUES(?,?)', (id,json.dumps(units,ensure_ascii=False)))
+                conn.execute('UPDATE drafts SET reviewed=0 WHERE id=?', (id,))
         else:
             return jsonify(error='未知操作'), 404
         return detail(id)
+    @app.get('/api/drafts/<id>/versions/<int:version>')
+    def version_detail(id, version):
+        d = get(id)
+        with db() as conn:
+            row = conn.execute('SELECT body FROM versions WHERE draft_id=? AND version=?', (id,version)).fetchone()
+        if row is None:
+            return jsonify(error='版本不存在'),404
+        return jsonify(body=row['body'], diff='\n'.join(difflib.unified_diff(row['body'].splitlines(),d['body'].splitlines(),fromfile='历史版本',tofile='当前正文',lineterm='')))
     @app.get('/api/drafts/<id>/export/<fmt>')
     def export(id, fmt):
         d = get(id)
