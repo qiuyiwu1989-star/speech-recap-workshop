@@ -63,3 +63,23 @@ python -m unittest discover -s tests -v
 编辑台现在提供原文稳定行号、人工信息清单、正文原句定位和四种保留状态。保留项必须引用已保存正文中的原句；正文变化会将已有信息点重置为待核。统计仅覆盖人工列出的信息点，不代表整场讲话的完整度。来源对照留在本地，不随公开正文导出。
 
 每次正文变化前保存历史快照，可查看与当前正文的逐行差异。暂不提供自动信息提取、语义遗漏识别、版本恢复按钮和并发编辑保护。信息清单中存在“待核”项时，不能完成最终复核或导出。尚未强制要求建立清单；未列出的信息不在统计范围内。
+
+## Agent + MCP（推荐入口，v0.2.0）
+
+由当前 Agent 整理内容；MCP 负责本地材料、来源清单、正文版本和待审包，无需另外配置模型 API。Skill 方法放在 `skills/speech-record-workshop/`，跟随 Git 版本迭代；客户端需要安装该 Skill 或明确加载它。仅接 MCP 不保证客户端自动遵守 Skill。
+
+```sh
+python3.12 -m venv .venv-mcp
+.venv-mcp/bin/pip install -r requirements-mcp.txt
+.venv-mcp/bin/python mcp_server.py
+```
+
+这是 stdio 服务，不监听公网端口。在支持 MCP 的客户端配置中使用绝对路径（替换下方目录）：
+
+```json
+{"mcpServers":{"speech-recap-workshop":{"command":"/absolute/path/speech-recap-workshop/.venv-mcp/bin/python","args":["/absolute/path/speech-recap-workshop/mcp_server.py"],"env":{"RECAP_DATA_DIR":"/absolute/path/private-recap-data"}}}}
+```
+
+可用工具：`workshop_method`、`workshop_list`、`workshop_create`、`workshop_read`、`workshop_save_body`、`workshop_save_evidence`、`workshop_version`、`workshop_review_package`。同一数据目录可供原本地界面查看；不要并发编辑同一篇稿件，首版尚无跨客户端冲突锁。MCP 不连接个人网站生产后台，不自动发布。当前方法指纹不能冒充历史执行证明。
+
+协议验收：`.venv-mcp/bin/python tests/mcp_smoke.py`。MCP 环境要求 Python 3.10+，推荐 3.12。
