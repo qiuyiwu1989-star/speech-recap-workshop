@@ -16,4 +16,4 @@
 
 管理端增加“全部已接入服务·只读”和“全部已接入服务·日常读写”批量选择。只调整表单，仍须保存授权；不创建新钥匙、不自动扩大旧钥匙权限。日常读写包括read/source.read/public.read/private.read/create/revise/private.create/private.revise，排除下载、发布、删除、确认和付费。活页读取范围采用all_visible。新服务不自动继承授权。
 
-已对生产新鲜center.js做hash检查、备份和定向部署；JavaScript语法验证通过，管理服务返回新脚本200。实际登录浏览器点击尚未验收。
+已对生产新鲜center.js做hash检查、备份和定向部署；JavaScript语法验证通过，未登录请求管理服务脚本返回403，认证保护正常；未取得登录态验证脚本响应。实际登录浏览器点击尚未验收。
